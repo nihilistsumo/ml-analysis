@@ -61,7 +61,7 @@ def build_name_corpus(npidata_file, output_file):
         processed_records += 1
         if processed_records % 10000 == 0:
             print(str(processed_records) + ' records processed')
-    with (output_file, 'w') as out:
+    with open(output_file, 'w') as out:
         for name_field in name_corpus:
             tokens = ''
             for token in name_field:
