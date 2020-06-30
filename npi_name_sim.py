@@ -41,7 +41,7 @@ def text_to_word_list(text):
 
     return text
 
-def build_name_corpus(npidata_file):
+def build_name_corpus(npidata_file, output_file):
     npidata_dataframe = pd.read_csv(npidata_file)
     npi_names = list(npidata_dataframe['Provider Organization Name (Legal Business Name)'])
     npi_other_names = list(npidata_dataframe['Provider Other Organization Name'])
@@ -61,4 +61,11 @@ def build_name_corpus(npidata_file):
         processed_records += 1
         if processed_records % 10000 == 0:
             print(str(processed_records) + ' records processed')
-    return name_corpus
+    corpus_lines = []
+    for name_field in name_corpus:
+        tokens = []
+        for token in name_field:
+            tokens.append(token)
+        corpus_lines.append(tokens)
+    with (output_file, 'w') as out:
+        out.write(corpus_lines)
