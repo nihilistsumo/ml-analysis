@@ -7,6 +7,21 @@ from tensorflow.python.keras.layers import Input, Embedding, LSTM, concatenate, 
 from tensorflow.python.keras.models import Model
 import tensorflow.python.keras.backend as K
 import tensorflow as tf
+import argparse
+import csv
+
+def get_npi_groups_data(npi_group_file_path):
+    npi_groups = {}
+    with open(npi_group_file_path, 'r') as npi_group_file:
+        file_reader = csv.reader(npi_group_file)
+        next(file_reader)
+        for row in file_reader:
+            group = row[0]
+            npi = row[1]
+            if group not in npi_groups.keys():
+                npi_groups[group] = [npi]
+            else:
+                npi_groups[group].append(npi)
 
 def text_to_word_list(text):
     ''' Pre process and convert texts to a list of words '''
@@ -176,3 +191,95 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
         history = model.fit([X_train['left'], X_train['right']], y_train, batch_size=batch_size, epochs=num_epoch,
                             verbose=1)
         return model
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-nf', '--npidata_file', help='Path to npidata file')
+    parser.add_argument('-ng', '--npi_groups_file', help='Path to npi groups mapping file')
+    parser.add_argument('-l', '--loss', choices=['mse', 'msle', 'mae', 'bce', 'cce'],
+                        help='Loss function to be used by the optimizer')
+    parser.add_argument('-lr', '--learning_rate', type=float, help='Learning rate of the optimizer')
+    parser.add_argument('-ll', '--lstm_layer_size', type=int, nargs='+', help='Size of LSTM layers')
+    parser.add_argument('-op', '--options', type=int, help='Options: 1 - Evaluate the model using 5 fold CV, 2 - Train'
+                                                           'the model using the full dataset')
+    parser.add_argument('-mo', '--model_output', default='model.out', help='Path to save the trained model '
+                                                      '(used only if 2  is chosen for option)')
+    args = parser.parse_args()
+    npidata_file_path = args.npidata_file
+    npi_groups_file_path = args.npi_groups_file
+    model = args.model
+    if args.loss == 'mse':
+        loss_func = 'mean_squared_error'
+    elif args.loss == 'msle':
+        loss_func = 'mean_squared_logarithmic_error'
+    elif args.loss == 'mae':
+        loss_func = 'mean_absolute_error'
+    elif args.loss == 'bce':
+        loss_func = 'binary_crossentropy'
+    elif args.loss == 'cce':
+        loss_func = 'categorical_crossentropy'
+    else:
+        loss_func = 'binary_crossentropy'
+    lrate = args.learning_rate
+    option = args.options
+
+    npi_group_map = get_npi_groups_data(npi_groups_file_path)
+
+    if option == 1:
+        group_indices = list(npi_group_map.keys())
+        group_partitions = [group_indices[i::5] for i in range(5)]
+        f = 1
+        model_metrics = []
+        dedupe_metrics = []
+
+        for test_groups in group_partitions:
+            print("Fold "+str(f)+"\n+++++++++++++")
+            train_groups = [k for k in group_indices if k not in test_groups]
+            train_npi_pairs = sample_npi_groups(train_groups, npi_group_map)
+            test_npi_pairs = sample_npi_groups(test_groups, npi_group_map)
+            for test_pair in test_npi_pairs.keys():
+                if test_pair not in dedupe_scores.keys():
+                    dedupe_scores[test_pair] = 0.0
+            (X_train, y_train), (X_test, y_test) = prepare_dataset(npi_embed_data, train_npi_pairs, test_npi_pairs)
+            f += 1
+            if model == 1:
+                model_metrics.append(run_logistic_regression(X_train, y_train, lrate, X_test, y_test))
+            else:
+                hidden_layers = args.hidden_layers
+                if hidden_layers is None or len(hidden_layers) < 1:
+                    print('Corrupted hidden layer info')
+                    sys.exit(0)
+                model_metrics.append(run_neural_network(
+                    X_train, y_train, hidden_layers, loss_func, lrate, X_test, y_test))
+            dedupe_metrics.append(calculate_dedupe_metrics(test_npi_pairs, dedupe_scores))
+        model_metrics = np.array(model_metrics)
+        dedupe_metrics = np.array(dedupe_metrics)
+        for i in range(len(model_metrics)):
+            print('Fold '+str(i)+' loss: %0.4f, MSE: %0.4f, AUC: %0.4f, Dedupe MSE: %0.4f, Dedupe AUC: %0.4f, ' %
+                  (model_metrics[i, 0], model_metrics[i, 1], model_metrics[i, 2], dedupe_metrics[i, 0],
+                   dedupe_metrics[i, 1]))
+        print('Mean loss: %0.4f' % model_metrics[:, 0].mean())
+        print('Mean MSE: %0.4f' % model_metrics[:, 1].mean())
+        print('Mean AUC: %0.4f' % model_metrics[:, 2].mean())
+        print('Mean Dedupe MSE: %0.4f' % dedupe_metrics[:, 0].mean())
+        print('Mean Dedupe AUC: %0.4f' % dedupe_metrics[:, 1].mean())
+    elif option == 2:
+        model_out = args.model_output
+        train_npi_pairs = sample_npi_groups(list(npi_group_map.keys()), npi_group_map)
+        (X_train, y_train) = get_npi_data_matrix(train_npi_pairs, npi_embed_data)
+        X_train = np.array(X_train)
+        y_train = to_categorical(np.array(y_train))
+        if model == 1:
+            m = run_logistic_regression(X_train, y_train)
+        else:
+            hidden_layers = args.hidden_layers
+            if hidden_layers is None or len(hidden_layers) < 1:
+                print('Corrupted hidden layer info')
+                sys.exit(0)
+            m = run_neural_network(X_train, y_train, hidden_layers)
+        m.save(model_out)
+    else:
+        print('Wrong option')
+
+if __name__ == '__main__':
+    main()
