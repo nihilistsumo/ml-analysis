@@ -1,6 +1,12 @@
 import re
 import pandas as pd
 import numpy as np
+from sklearn.metrics import roc_auc_score
+from tensorflow.keras.utils import to_categorical
+from tensorflow.python.keras.layers import Input, Embedding, LSTM, concatenate, Lambda
+from tensorflow.python.keras.models import Model
+import tensorflow.python.keras.backend as K
+import tensorflow as tf
 
 def text_to_word_list(text):
     ''' Pre process and convert texts to a list of words '''
@@ -101,5 +107,72 @@ def get_npi_name_mappings(npidata_file, vocabulary):
                                       npi_name_data[npi]['other']
     return npi_name_data, max_name_len, max_other_name_len
 
-def prepare_dataset():
-    pass
+def get_npipairs_data_matrix(npi_pairs_data, npi_name_data):
+    X_left = []
+    X_right = []
+    y = []
+    for pair in npi_pairs_data.keys():
+        npi1, npi2 = pair
+        npi1_name_data = npi_name_data[npi1]['name']
+        npi1_other_name_data = npi_name_data[npi1]['other']
+        npi2_name_data = npi_name_data[npi2]['name']
+        npi2_other_name_data = npi_name_data[npi2]['other']
+        X_left.append(npi1_name_data + npi1_other_name_data)
+        X_right.append(npi2_name_data + npi2_other_name_data)
+        y.append(npi_pairs_data[pair])
+    X = {'left': X_left, 'right': X_right}
+    return X, y
+
+def prepare_dataset(npi_name_data, train_npi_pairs, test_npi_pairs):
+    (X_train, y_train) = get_npipairs_data_matrix(train_npi_pairs, npi_name_data)
+    (X_test, y_test) = get_npipairs_data_matrix(test_npi_pairs, npi_name_data)
+    y_train = to_categorical(np.array(y_train))
+    y_test = to_categorical(np.array(y_test))
+    return (X_train, y_train), (X_test, y_test)
+
+def exponent_neg_manhattan_distance(left, right):
+    return K.exp(-K.sum(K.abs(left-right), axis=1, keepdims=True))
+
+def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_matrix, embedding_dim, lstm_layer_size,
+               loss_func='binary_crossentropy', learning_rate=0.01, X_test=None, y_test=None):
+    left_input = Input(shape=(max_name_len + max_other_name_len,), dtype='int32')
+    right_input = Input(shape=(max_name_len + max_other_name_len,), dtype='int32')
+    embedding_layer = Embedding(len(embedding_matrix), embedding_dim, weights=[embedding_matrix],
+                                input_length=max_name_len + max_other_name_len, trainable=False)
+    encoded_name_left = embedding_layer(left_input[:max_name_len])
+    encoded_other_name_left = embedding_layer(left_input[max_name_len:])
+    encoded_name_right = embedding_layer(right_input[:max_name_len])
+    encoded_other_name_right = embedding_layer(right_input[max_name_len:])
+
+    shared_name_lstm = LSTM(lstm_layer_size)
+    shared_other_name_lstm = LSTM(lstm_layer_size)
+
+    left_name_output = shared_name_lstm(encoded_name_left)
+    right_name_output = shared_name_lstm(encoded_name_right)
+    left_other_name_output = shared_other_name_lstm(encoded_other_name_left)
+    right_other_name_output = shared_other_name_lstm(encoded_other_name_right)
+
+    left_output = concatenate([left_name_output, left_other_name_output])
+    right_output = concatenate([right_name_output, right_other_name_output])
+
+    malstm_distance = Lambda(function=lambda x: exponent_neg_manhattan_distance(x[0], x[1]),
+                             output_shape=lambda x: (x[0][0], 1))([left_output, right_output])
+    model = Model([left_input, right_input], [malstm_distance])
+    opt = tf.keras.optimizers.Adam(lr=learning_rate)
+    model.compile(optimizer=opt, loss=loss_func, metrics=['mse'])
+
+    batch_size = 128
+    num_epoch = 100
+    if X_test is not None:
+        history = model.fit([X_train['left'], X_train['right']], y_train, batch_size=batch_size, epochs=num_epoch,
+                        verbose=1, validation_data=(X_test, y_test))
+        score = model.evaluate(X_test, y_test, verbose=0)
+        yhat = model.predict(X_test, verbose=0)
+        auc_score = roc_auc_score(y_test, yhat)
+        score.append(auc_score)
+        print('Current fold AUC: ', score[2])
+        return score
+    else:
+        history = model.fit([X_train['left'], X_train['right']], y_train, batch_size=batch_size, epochs=num_epoch,
+                            verbose=1)
+        return model
