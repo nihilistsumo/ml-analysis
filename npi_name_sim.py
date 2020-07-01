@@ -93,6 +93,13 @@ def get_npi_name_mappings(npidata_file, vocabulary):
         npi_name_data[npi] = \
             {'name': [vocabulary.index(word) + 1 if word in vocabulary else 0 for word in npi_name_words],
              'other': [vocabulary.index(word) + 1 if word in vocabulary else 0 for word in npi_other_name_words]}
-    max_name_len = max([len(npi_name_data[npi]['name']) for npi in npi_name_data.keys()] +
-                       [len(npi_name_data[npi]['other']) for npi in npi_name_data.keys()])
-    return npi_name_data, max_name_len
+    max_name_len = max([len(npi_name_data[npi]['name']) for npi in npi_name_data.keys()])
+    max_other_name_len = max([len(npi_name_data[npi]['other']) for npi in npi_name_data.keys()])
+    for npi in npi_name_data.keys():
+        npi_name_data[npi]['name'] = [0] * (max_name_len - len(npi_name_data[npi]['name'])) + npi_name_data[npi]['name']
+        npi_name_data[npi]['other'] = [0] * (max_other_name_len - len(npi_name_data[npi]['other'])) + \
+                                      npi_name_data[npi]['other']
+    return npi_name_data, max_name_len, max_other_name_len
+
+def prepare_dataset():
+    pass
