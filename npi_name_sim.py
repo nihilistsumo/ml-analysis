@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+import numpy as np
 
 def text_to_word_list(text):
     ''' Pre process and convert texts to a list of words '''
@@ -67,3 +68,31 @@ def build_name_corpus(npidata_file, output_file):
             for token in name_field:
                 tokens += token + ' '
             out.write(tokens.rstrip()+'\n')
+
+def build_embeddings(glove_vec_file):
+    glove_dataframe = pd.read_csv(glove_vec_file, sep=' ', quoting=3, header=None, index_col=0)
+    glove_dict = {word: vecs.values for word, vecs in glove_dataframe.T.items()}
+    vocabulary = list(glove_dict.keys())
+    veclen = glove_dict[vocabulary[0]].size
+    embedding_matrix = np.random.randn(len(vocabulary)+1, veclen)
+    embedding_matrix[0] = 0
+    for i in range(len(vocabulary)):
+        embedding_matrix[i+1] = glove_dict[vocabulary[i]]
+    del glove_dict
+    return vocabulary, embedding_matrix
+
+def get_npi_name_mappings(npidata_file, vocabulary):
+    npidata_dataframe = pd.read_csv(npidata_file)
+    npi_name_data = {}
+    for index, row in npidata_dataframe.iterrows():
+        npi = row['NPI']
+        npi_name = row['Provider Organization Name (Legal Business Name)']
+        npi_other_name = row['Provider Other Organization Name']
+        npi_name_words = text_to_word_list(npi_name) if isinstance(npi_name, str) else []
+        npi_other_name_words = text_to_word_list(npi_other_name) if isinstance(npi_other_name, str) else []
+        npi_name_data[npi] = \
+            {'name': [vocabulary.index(word) + 1 if word in vocabulary else 0 for word in npi_name_words],
+             'other': [vocabulary.index(word) + 1 if word in vocabulary else 0 for word in npi_other_name_words]}
+    max_name_len = max([len(npi_name_data[npi]['name']) for npi in npi_name_data.keys()] +
+                       [len(npi_name_data[npi]['other']) for npi in npi_name_data.keys()])
+    return npi_name_data, max_name_len
