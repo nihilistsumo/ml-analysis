@@ -9,6 +9,38 @@ import tensorflow.python.keras.backend as K
 import tensorflow as tf
 import argparse
 import csv
+import random
+
+def sample_npi_groups(groups_in_split, group_npi_mapping):
+    npis_in_split = []
+    for group in groups_in_split:
+        npis_in_split += group_npi_mapping[group]
+    labelled_npi_pairs = {}
+    for group in groups_in_split:
+        npis_in_group = group_npi_mapping[group]
+        npis_not_in_group = [n for n in npis_in_split if n not in npis_in_group]
+        positive_samples = 0
+        negative_samples = 0
+        for i in range(len(npis_in_group)-1):
+            for j in range(i+1, len(npis_in_group)):
+                npi_key = [npis_in_group[i], npis_in_group[j]]
+                npi_key.sort()
+                labelled_npi_pairs[tuple(npi_key)] = 1
+                positive_samples += 1
+        if positive_samples > 0:
+            npi1_index = 0
+            while(negative_samples < positive_samples):
+                npi1 = npis_in_group[npi1_index % len(npis_in_group)]
+                if len(npis_not_in_group) < 1:
+                    npis_not_in_group = [n for n in npis_in_split if n not in npis_in_group]
+                npi2 = random.sample(npis_not_in_group, 1)[0]
+                npis_not_in_group.remove(npi2)
+                npi_key = [npi1, npi2]
+                npi_key.sort()
+                labelled_npi_pairs[tuple(npi_key)] = 0
+                negative_samples += 1
+                npi1_index += 1
+    return labelled_npi_pairs
 
 def get_npi_groups_data(npi_group_file_path):
     npi_groups = {}
@@ -22,6 +54,7 @@ def get_npi_groups_data(npi_group_file_path):
                 npi_groups[group] = [npi]
             else:
                 npi_groups[group].append(npi)
+    return npi_groups
 
 def text_to_word_list(text):
     ''' Pre process and convert texts to a list of words '''
@@ -196,6 +229,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-nf', '--npidata_file', help='Path to npidata file')
     parser.add_argument('-ng', '--npi_groups_file', help='Path to npi groups mapping file')
+    parser.add_argument('-gf', '--glove_vec_file', help='Path to glove vectors file')
     parser.add_argument('-l', '--loss', choices=['mse', 'msle', 'mae', 'bce', 'cce'],
                         help='Loss function to be used by the optimizer')
     parser.add_argument('-lr', '--learning_rate', type=float, help='Learning rate of the optimizer')
@@ -207,7 +241,7 @@ def main():
     args = parser.parse_args()
     npidata_file_path = args.npidata_file
     npi_groups_file_path = args.npi_groups_file
-    model = args.model
+    glove_vec_file = args.glove_vec_file
     if args.loss == 'mse':
         loss_func = 'mean_squared_error'
     elif args.loss == 'msle':
@@ -221,9 +255,12 @@ def main():
     else:
         loss_func = 'binary_crossentropy'
     lrate = args.learning_rate
+    lstm_size = args.lstm_layer_size
     option = args.options
 
     npi_group_map = get_npi_groups_data(npi_groups_file_path)
+    vocab, embedding_matrix = build_embeddings(glove_vec_file)
+    npi_name_data, max_name_len, max_other_name_len = get_npi_name_mappings(npidata_file_path, vocab)
 
     if option == 1:
         group_indices = list(npi_group_map.keys())
@@ -237,46 +274,25 @@ def main():
             train_groups = [k for k in group_indices if k not in test_groups]
             train_npi_pairs = sample_npi_groups(train_groups, npi_group_map)
             test_npi_pairs = sample_npi_groups(test_groups, npi_group_map)
-            for test_pair in test_npi_pairs.keys():
-                if test_pair not in dedupe_scores.keys():
-                    dedupe_scores[test_pair] = 0.0
-            (X_train, y_train), (X_test, y_test) = prepare_dataset(npi_embed_data, train_npi_pairs, test_npi_pairs)
+
+            (X_train, y_train), (X_test, y_test) = prepare_dataset(npi_name_data, train_npi_pairs, test_npi_pairs)
             f += 1
-            if model == 1:
-                model_metrics.append(run_logistic_regression(X_train, y_train, lrate, X_test, y_test))
-            else:
-                hidden_layers = args.hidden_layers
-                if hidden_layers is None or len(hidden_layers) < 1:
-                    print('Corrupted hidden layer info')
-                    sys.exit(0)
-                model_metrics.append(run_neural_network(
-                    X_train, y_train, hidden_layers, loss_func, lrate, X_test, y_test))
-            dedupe_metrics.append(calculate_dedupe_metrics(test_npi_pairs, dedupe_scores))
+            model_metrics.append(run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_matrix,
+                                            embedding_matrix.shape[1], lstm_size, loss_func, lrate, X_test, y_test))
         model_metrics = np.array(model_metrics)
-        dedupe_metrics = np.array(dedupe_metrics)
         for i in range(len(model_metrics)):
-            print('Fold '+str(i)+' loss: %0.4f, MSE: %0.4f, AUC: %0.4f, Dedupe MSE: %0.4f, Dedupe AUC: %0.4f, ' %
-                  (model_metrics[i, 0], model_metrics[i, 1], model_metrics[i, 2], dedupe_metrics[i, 0],
-                   dedupe_metrics[i, 1]))
+            print('Fold '+str(i)+' loss: %0.4f, MSE: %0.4f, AUC: %0.4f ' %
+                  (model_metrics[i, 0], model_metrics[i, 1], model_metrics[i, 2]))
         print('Mean loss: %0.4f' % model_metrics[:, 0].mean())
         print('Mean MSE: %0.4f' % model_metrics[:, 1].mean())
         print('Mean AUC: %0.4f' % model_metrics[:, 2].mean())
-        print('Mean Dedupe MSE: %0.4f' % dedupe_metrics[:, 0].mean())
-        print('Mean Dedupe AUC: %0.4f' % dedupe_metrics[:, 1].mean())
     elif option == 2:
         model_out = args.model_output
         train_npi_pairs = sample_npi_groups(list(npi_group_map.keys()), npi_group_map)
-        (X_train, y_train) = get_npi_data_matrix(train_npi_pairs, npi_embed_data)
-        X_train = np.array(X_train)
+        (X_train, y_train) = get_npipairs_data_matrix(train_npi_pairs, npi_name_data)
         y_train = to_categorical(np.array(y_train))
-        if model == 1:
-            m = run_logistic_regression(X_train, y_train)
-        else:
-            hidden_layers = args.hidden_layers
-            if hidden_layers is None or len(hidden_layers) < 1:
-                print('Corrupted hidden layer info')
-                sys.exit(0)
-            m = run_neural_network(X_train, y_train, hidden_layers)
+        m = run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_matrix, embedding_matrix.shape[1],
+                       lstm_size, loss_func, lrate)
         m.save(model_out)
     else:
         print('Wrong option')
