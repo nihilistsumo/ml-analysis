@@ -198,8 +198,8 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
     shared_name_lstm = LSTM(lstm_layer_size)
     shared_other_name_lstm = LSTM(lstm_layer_size)
 
-    left_name_output = shared_name_lstm(encoded_left[:max_name_len])
-    right_name_output = shared_name_lstm(encoded_right[:max_name_len])
+    left_name_output = shared_name_lstm(encoded_left)
+    right_name_output = shared_name_lstm(encoded_right)
     left_other_name_output = shared_other_name_lstm(encoded_left[max_name_len:])
     right_other_name_output = shared_other_name_lstm(encoded_right[max_name_len:])
 
