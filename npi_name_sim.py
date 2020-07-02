@@ -2,9 +2,9 @@ import re
 import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
-from keras.utils import to_categorical
-from keras.layers import Input, Embedding, LSTM, concatenate, Lambda
-from keras.models import Model
+from tensorflow.keras.utils import to_categorical
+from tensorflow.python.keras.layers import Input, Embedding, LSTM, concatenate, Lambda
+from tensorflow.python.keras.models import Model
 import tensorflow.python.keras.backend as K
 import tensorflow as tf
 import argparse
@@ -196,8 +196,8 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
     encoded_name_right = name_embedding_layer(right_name_input)
     encoded_other_name_right = other_name_embedding_layer(right_other_name_input)
 
-    shared_name_lstm = LSTM(lstm_layer_size, input_shape=(max_name_len, embedding_dim))
-    shared_other_name_lstm = LSTM(lstm_layer_size, input_shape=(max_other_name_len, embedding_dim))
+    shared_name_lstm = LSTM(lstm_layer_size)
+    shared_other_name_lstm = LSTM(lstm_layer_size)
 
     left_name_output = shared_name_lstm(encoded_name_left)
     right_name_output = shared_name_lstm(encoded_name_right)
