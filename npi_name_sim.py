@@ -187,18 +187,21 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
     right_input = Input(shape=(max_name_len + max_other_name_len,), dtype='int32')
     embedding_layer = Embedding(len(embedding_matrix), embedding_dim, weights=[embedding_matrix],
                                 input_length=max_name_len + max_other_name_len, trainable=False)
-    encoded_name_left = embedding_layer(left_input[:max_name_len])
-    encoded_other_name_left = embedding_layer(left_input[max_name_len:])
-    encoded_name_right = embedding_layer(right_input[:max_name_len])
-    encoded_other_name_right = embedding_layer(right_input[max_name_len:])
+    #encoded_name_left = embedding_layer(left_input[:max_name_len])
+    #encoded_other_name_left = embedding_layer(left_input[max_name_len:])
+    #encoded_name_right = embedding_layer(right_input[:max_name_len])
+    #encoded_other_name_right = embedding_layer(right_input[max_name_len:])
+
+    encoded_left = embedding_layer(left_input)
+    encoded_right = embedding_layer(right_input)
 
     shared_name_lstm = LSTM(lstm_layer_size)
     shared_other_name_lstm = LSTM(lstm_layer_size)
 
-    left_name_output = shared_name_lstm(encoded_name_left)
-    right_name_output = shared_name_lstm(encoded_name_right)
-    left_other_name_output = shared_other_name_lstm(encoded_other_name_left)
-    right_other_name_output = shared_other_name_lstm(encoded_other_name_right)
+    left_name_output = shared_name_lstm(encoded_left[:max_name_len])
+    right_name_output = shared_name_lstm(encoded_right[:max_name_len])
+    left_other_name_output = shared_other_name_lstm(encoded_left[max_name_len:])
+    right_other_name_output = shared_other_name_lstm(encoded_right[max_name_len:])
 
     left_output = concatenate([left_name_output, left_other_name_output])
     right_output = concatenate([right_name_output, right_other_name_output])
