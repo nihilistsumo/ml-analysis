@@ -185,7 +185,7 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
                loss_func='binary_crossentropy', learning_rate=0.01, X_test=None, y_test=None):
     left_input = Input(shape=(max_name_len + max_other_name_len,), dtype='int32')
     right_input = Input(shape=(max_name_len + max_other_name_len,), dtype='int32')
-    embedding_layer = Embedding(len(embedding_matrix), embedding_dim, weights=[embedding_matrix],
+    embedding_layer = Embedding(input_dim=len(embedding_matrix), output_dim=embedding_dim, weights=[embedding_matrix],
                                 input_length=max_name_len + max_other_name_len, trainable=False)
     encoded_name_left = embedding_layer(left_input[:max_name_len])
     encoded_other_name_left = embedding_layer(left_input[max_name_len:])
