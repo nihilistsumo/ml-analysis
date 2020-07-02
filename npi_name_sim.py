@@ -139,7 +139,7 @@ def get_npi_name_mappings(npidata_file, vocabulary):
     npidata_dataframe = pd.read_csv(npidata_file)
     npi_name_data = {}
     for index, row in npidata_dataframe.iterrows():
-        npi = row['NPI']
+        npi = str(row['NPI'])
         npi_name = row['Provider Organization Name (Legal Business Name)']
         npi_other_name = row['Provider Other Organization Name']
         npi_name_words = text_to_word_list(npi_name) if isinstance(npi_name, str) else []
