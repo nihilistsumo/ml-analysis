@@ -168,6 +168,8 @@ def get_npipairs_data_matrix(npi_pairs_data, npi_name_data):
         X_left.append(npi1_name_data + npi1_other_name_data)
         X_right.append(npi2_name_data + npi2_other_name_data)
         y.append(npi_pairs_data[pair])
+    X_left = np.array(X_left)
+    X_right = np.array(X_right)
     X = {'left': X_left, 'right': X_right}
     return X, y
 
@@ -209,15 +211,16 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
 
     malstm_distance = Lambda(function=lambda x: exponent_neg_manhattan_distance(x[0], x[1]),
                              output_shape=lambda x: (x[0][0], 1))([left_output, right_output])
-    model = Model([left_input, right_input], [malstm_distance])
+    model = Model([left_name_input, left_other_name_input, right_name_input, right_other_name_input], [malstm_distance])
     opt = tf.keras.optimizers.Adam(lr=learning_rate)
     model.compile(optimizer=opt, loss=loss_func, metrics=['mse'])
 
     batch_size = 128
     num_epoch = 100
     if X_test is not None:
-        history = model.fit([X_train['left'], X_train['right']], y_train, batch_size=batch_size, epochs=num_epoch,
-                        verbose=1, validation_data=(X_test, y_test))
+        history = model.fit([X_train['left'][:, :max_name_len], X_train['left'][:, max_name_len:],
+                             X_train['right'][:, :max_name_len], X_train['right'][:, max_name_len:]], y_train,
+                            batch_size=batch_size, epochs=num_epoch, verbose=1, validation_data=(X_test, y_test))
         score = model.evaluate(X_test, y_test, verbose=0)
         yhat = model.predict(X_test, verbose=0)
         auc_score = roc_auc_score(y_test, yhat)
@@ -225,8 +228,9 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
         print('Current fold AUC: ', score[2])
         return score
     else:
-        history = model.fit([X_train['left'], X_train['right']], y_train, batch_size=batch_size, epochs=num_epoch,
-                            verbose=1)
+        history = model.fit([X_train['left'][:, :max_name_len], X_train['left'][:, max_name_len:],
+                             X_train['right'][:, :max_name_len], X_train['right'][:, max_name_len:]], y_train,
+                            batch_size=batch_size, epochs=num_epoch, verbose=1)
         return model
 
 def main():
