@@ -2,9 +2,9 @@ import re
 import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
-from tensorflow.keras.utils import to_categorical
-from tensorflow.python.keras.layers import Input, Embedding, LSTM, concatenate, Lambda
-from tensorflow.python.keras.models import Model
+from keras.utils import to_categorical
+from keras.layers import Input, Embedding, LSTM, concatenate, Lambda
+from keras.models import Model
 import tensorflow.python.keras.backend as K
 import tensorflow as tf
 import argparse
