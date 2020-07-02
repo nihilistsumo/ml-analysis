@@ -192,8 +192,8 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
     encoded_name_right = embedding_layer(right_input[:max_name_len])
     encoded_other_name_right = embedding_layer(right_input[max_name_len:])
 
-    shared_name_lstm = LSTM(lstm_layer_size)
-    shared_other_name_lstm = LSTM(lstm_layer_size)
+    shared_name_lstm = LSTM(lstm_layer_size, input_shape=(max_name_len, embedding_dim))
+    shared_other_name_lstm = LSTM(lstm_layer_size, input_shape=(max_other_name_len, embedding_dim))
 
     left_name_output = shared_name_lstm(encoded_name_left)
     right_name_output = shared_name_lstm(encoded_name_right)
@@ -267,7 +267,6 @@ def main():
         group_partitions = [group_indices[i::5] for i in range(5)]
         f = 1
         model_metrics = []
-        dedupe_metrics = []
 
         for test_groups in group_partitions:
             print("Fold "+str(f)+"\n+++++++++++++")
