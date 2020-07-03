@@ -223,8 +223,11 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
                             batch_size=batch_size, epochs=num_epoch, verbose=1, validation_data=(
                 [X_test['left'][:, :max_name_len], X_test['left'][:, max_name_len:], X_test['right'][:, :max_name_len],
                  X_test['right'][:, max_name_len:]], y_test))
-        score = model.evaluate(X_test, y_test, verbose=0)
-        yhat = model.predict(X_test, verbose=0)
+        score = model.evaluate([X_test['left'][:, :max_name_len], X_test['left'][:, max_name_len:],
+                                X_test['right'][:, :max_name_len], X_test['right'][:, max_name_len:]],
+                               y_test, verbose=0)
+        yhat = model.predict([X_test['left'][:, :max_name_len], X_test['left'][:, max_name_len:],
+                              X_test['right'][:, :max_name_len], X_test['right'][:, max_name_len:]], verbose=0)
         auc_score = roc_auc_score(y_test, yhat)
         score.append(auc_score)
         print('Current fold AUC: ', score[2])
