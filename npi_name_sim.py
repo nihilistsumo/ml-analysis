@@ -275,7 +275,9 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
     if X_test is not None:
         history = model.fit([X_train['left'][:, :max_name_len], X_train['left'][:, max_name_len:],
                              X_train['right'][:, :max_name_len], X_train['right'][:, max_name_len:]], y_train,
-                            batch_size=batch_size, epochs=num_epoch, verbose=1, validation_data=(X_test, y_test))
+                            batch_size=batch_size, epochs=num_epoch, verbose=1, validation_data=(
+                [X_test['left'][:, :max_name_len], X_test['left'][:, max_name_len:], X_test['right'][:, :max_name_len],
+                 X_test['right'][:, max_name_len:]], y_test))
         score = model.evaluate(X_test, y_test, verbose=0)
         yhat = model.predict(X_test, verbose=0)
         auc_score = roc_auc_score(y_test, yhat)
