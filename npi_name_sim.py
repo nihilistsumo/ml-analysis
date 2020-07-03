@@ -11,6 +11,15 @@ import argparse
 import csv
 import random
 
+import random
+random.seed(42)
+
+
+from numpy.random import seed
+seed(42)
+from tensorflow.random import set_seed
+set_seed(42)
+
 def sample_npi_groups(groups_in_split, group_npi_mapping):
     npis_in_split = []
     for group in groups_in_split:
