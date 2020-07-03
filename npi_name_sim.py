@@ -133,7 +133,7 @@ def build_embeddings(glove_vec_file):
     for i in range(len(vocabulary)):
         embedding_matrix[i+1] = glove_dict[vocabulary[i]]
     del glove_dict
-    return vocabulary, embedding_matrix
+    return vocabulary, np.array(embedding_matrix)
 
 def get_npi_name_mappings(npidata_file, vocabulary):
     npidata_dataframe = pd.read_csv(npidata_file)
