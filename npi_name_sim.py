@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
 from tensorflow.keras.utils import to_categorical
-from tensorflow.python.keras.layers import Input, Embedding, LSTM, concatenate, Lambda, Dense
-from tensorflow.python.keras.models import Model, Sequential
+from tensorflow.python.keras.layers import Input, Embedding, LSTM, concatenate, Lambda
+from tensorflow.python.keras.models import Model
 import tensorflow.python.keras.backend as K
 import tensorflow as tf
 import argparse
@@ -177,16 +177,12 @@ def get_npipairs_data_matrix(npi_pairs_data, npi_name_data):
 def prepare_dataset(npi_name_data, train_npi_pairs, test_npi_pairs):
     (X_train, y_train) = get_npipairs_data_matrix(train_npi_pairs, npi_name_data)
     (X_test, y_test) = get_npipairs_data_matrix(test_npi_pairs, npi_name_data)
-    # y_train = to_categorical(np.array(y_train))
-    # y_train = np.asarray(y_train).astype('float32').reshape((-1, 2))
-    # y_test = to_categorical(np.array(y_test))
-    # y_test = np.asarray(y_test).astype('float32').reshape((-1, 2))
     return (X_train, y_train), (X_test, y_test)
 
 def exponent_neg_manhattan_distance(left, right):
     return K.exp(-K.sum(K.abs(left-right), axis=1, keepdims=True))
 
-'''
+
 def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_matrix, embedding_dim, lstm_layer_size,
                loss_func='binary_crossentropy', learning_rate=0.01, X_test=None, y_test=None):
     left_name_input = Input(shape=(max_name_len,), dtype='int32')
@@ -216,57 +212,6 @@ def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_mat
     malstm_distance = Lambda(function=lambda x: exponent_neg_manhattan_distance(x[0], x[1]),
                              output_shape=lambda x: (x[0][0], 1))([left_output, right_output])
     model = Model([left_name_input, left_other_name_input, right_name_input, right_other_name_input], [malstm_distance])
-    opt = tf.keras.optimizers.Adam(lr=learning_rate)
-    model.compile(optimizer=opt, loss=loss_func, metrics=['mse'])
-
-    batch_size = 128
-    num_epoch = 100
-    if X_test is not None:
-        history = model.fit([X_train['left'][:, :max_name_len], X_train['left'][:, max_name_len:],
-                             X_train['right'][:, :max_name_len], X_train['right'][:, max_name_len:]], y_train,
-                            batch_size=batch_size, epochs=num_epoch, verbose=1, validation_data=(X_test, y_test))
-        score = model.evaluate(X_test, y_test, verbose=0)
-        yhat = model.predict(X_test, verbose=0)
-        auc_score = roc_auc_score(y_test, yhat)
-        score.append(auc_score)
-        print('Current fold AUC: ', score[2])
-        return score
-    else:
-        history = model.fit([X_train['left'][:, :max_name_len], X_train['left'][:, max_name_len:],
-                             X_train['right'][:, :max_name_len], X_train['right'][:, max_name_len:]], y_train,
-                            batch_size=batch_size, epochs=num_epoch, verbose=1)
-        return model
-'''
-
-def run_malstm(X_train, y_train, max_name_len, max_other_name_len, embedding_matrix, embedding_dim, lstm_layer_size,
-               loss_func='binary_crossentropy', learning_rate=0.01, X_test=None, y_test=None):
-    left_name_input = Input(shape=(max_name_len,), dtype='int32')
-    left_other_name_input = Input(shape=(max_other_name_len,), dtype='int32')
-    right_name_input = Input(shape=(max_name_len,), dtype='int32')
-    right_other_name_input = Input(shape=(max_other_name_len,), dtype='int32')
-    name_embedding_layer = Embedding(input_dim=len(embedding_matrix), output_dim=embedding_dim,
-                                     weights=[embedding_matrix], input_length=max_name_len, trainable=False)
-    other_name_embedding_layer = Embedding(input_dim=len(embedding_matrix), output_dim=embedding_dim,
-                                           weights=[embedding_matrix], input_length=max_other_name_len, trainable=False)
-    encoded_name_left = name_embedding_layer(left_name_input)
-    encoded_other_name_left = other_name_embedding_layer(left_other_name_input)
-    encoded_name_right = name_embedding_layer(right_name_input)
-    encoded_other_name_right = other_name_embedding_layer(right_other_name_input)
-
-    shared_name_lstm = LSTM(lstm_layer_size)
-    shared_other_name_lstm = LSTM(lstm_layer_size)
-
-    left_name_output = shared_name_lstm(encoded_name_left)
-    right_name_output = shared_name_lstm(encoded_name_right)
-    left_other_name_output = shared_other_name_lstm(encoded_other_name_left)
-    right_other_name_output = shared_other_name_lstm(encoded_other_name_right)
-
-    left_output = concatenate([left_name_output, left_other_name_output])
-    right_output = concatenate([right_name_output, right_other_name_output])
-
-    final_output = concatenate([left_output, right_output])
-    preds = Dense(1, activation='sigmoid')(final_output)
-    model = Model([left_name_input, left_other_name_input, right_name_input, right_other_name_input], [preds])
     opt = tf.keras.optimizers.Adam(lr=learning_rate)
     model.compile(optimizer=opt, loss=loss_func, metrics=['mse'])
 
