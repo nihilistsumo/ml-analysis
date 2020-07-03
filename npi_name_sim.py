@@ -294,7 +294,7 @@ def main():
     parser.add_argument('-l', '--loss', choices=['mse', 'msle', 'mae', 'bce', 'cce'],
                         help='Loss function to be used by the optimizer')
     parser.add_argument('-lr', '--learning_rate', type=float, help='Learning rate of the optimizer')
-    parser.add_argument('-ll', '--lstm_layer_size', type=int, nargs='+', help='Size of LSTM layers')
+    parser.add_argument('-ll', '--lstm_layer_size', type=int, help='Size of LSTM layers')
     parser.add_argument('-op', '--options', type=int, help='Options: 1 - Evaluate the model using 5 fold CV, 2 - Train'
                                                            'the model using the full dataset')
     parser.add_argument('-mo', '--model_output', default='model.out', help='Path to save the trained model '
