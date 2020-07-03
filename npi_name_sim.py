@@ -177,7 +177,9 @@ def prepare_dataset(npi_name_data, train_npi_pairs, test_npi_pairs):
     (X_train, y_train) = get_npipairs_data_matrix(train_npi_pairs, npi_name_data)
     (X_test, y_test) = get_npipairs_data_matrix(test_npi_pairs, npi_name_data)
     y_train = to_categorical(np.array(y_train))
+    y_train = np.asarray(y_train).astype('float32').reshape((-1, 1))
     y_test = to_categorical(np.array(y_test))
+    y_test = np.asarray(y_test).astype('float32').reshape((-1, 1))
     return (X_train, y_train), (X_test, y_test)
 
 def exponent_neg_manhattan_distance(left, right):
