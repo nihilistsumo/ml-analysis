@@ -109,17 +109,21 @@ def build_name_corpus(npidata_file, output_file):
     npidata_dataframe = pd.read_csv(npidata_file)
     npi_names = list(npidata_dataframe['Provider Organization Name (Legal Business Name)'])
     npi_other_names = list(npidata_dataframe['Provider Other Organization Name'])
+    npi_parent_org_names = list(npidata_dataframe['Parent Organization LBN'])
     name_corpus = []
     print(str(len(npi_names)) + ' records to process')
     processed_records = 0
     for i in range(len(npi_names)):
         name = npi_names[i]
         other_name = npi_other_names[i]
+        parent_name = npi_parent_org_names[i]
         processed_name = []
         if isinstance(name, str):
             processed_name += text_to_word_list(name)
         if isinstance(other_name, str):
             processed_name += text_to_word_list(other_name)
+        if isinstance(parent_name, str):
+            processed_name += text_to_word_list(parent_name)
         if len(processed_name) > 0:
             name_corpus.append(processed_name)
         processed_records += 1
